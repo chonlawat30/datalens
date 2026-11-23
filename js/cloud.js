@@ -4,7 +4,9 @@ const Cloud = {
   ok() {
     const c = window.APP_CONFIG || {};
     if (!c.SUPABASE_URL || !c.SUPABASE_ANON_KEY) return false;
-    this.sb = this.sb || supabase.createClient(c.SUPABASE_URL, c.SUPABASE_ANON_KEY);
+    let url = c.SUPABASE_URL.trim();
+    try { url = new URL(url).origin; } catch (e) { return false; } // ตัด path ส่วนเกิน เช่น /rest/v1/ ออกให้อัตโนมัติ
+    this.sb = this.sb || supabase.createClient(url, c.SUPABASE_ANON_KEY.trim());
     return true;
   },
   async save(name, cols, rows, log) {
