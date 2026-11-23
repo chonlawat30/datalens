@@ -1,5 +1,5 @@
 # DataLens
-เว็บนำเสนอข้อมูล: อัปโหลด Excel/CSV → ทำความสะอาด → แดชบอร์ด (HTML + CSS + JS ล้วน ไม่ต้อง build)
+เว็บนำเสนอข้อมูล: อัปโหลด Excel/CSV → ทำความสะอาด → บันทึกลง Supabase → แดชบอร์ดดึงข้อมูลจาก Supabase เท่านั้น (HTML + CSS + JS ล้วน ไม่ต้อง build)
 
 ## โครงสร้าง
 - `index.html` โครงหน้า · `css/style.css` ธีมขาว-น้ำเงิน
@@ -8,7 +8,8 @@
 
 ## ตั้งค่า Supabase
 1. สร้างโปรเจกต์ → SQL Editor → รัน `supabase/schema.sql`
-2. คัดลอก Project URL และ anon key ใส่ใน `js/config.js`
+2. (ถ้าต้องการข้อมูลเริ่มต้น) รัน `supabase/seed.sql`
+3. คัดลอก Project URL และ anon key ใส่ใน `js/config.js`
 
 ## Deploy
 `git init && git add . && git commit -m init` → push ขึ้น GitHub → Vercel: Import repo (Framework: Other, ไม่ต้องตั้ง build) 

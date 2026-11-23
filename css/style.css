@@ -36,3 +36,4 @@ th{background:var(--sky);color:var(--navy);position:sticky;top:0}td.n{text-align
 dialog{border:0;border-radius:14px;padding:20px;max-width:520px;width:92%}dialog::backdrop{background:#0b2a5b88}
 .h{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.top{padding:10px 12px}main{padding:12px}}
+#dsel{max-width:340px;font-weight:500}

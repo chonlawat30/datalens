@@ -18,18 +18,17 @@
     <button class="tab" data-t="table">ตารางข้อมูล</button>
   </nav>
   <div class="actions">
-    <button id="btnHistory" class="ghost">ไฟล์ที่บันทึกไว้</button>
-    <button id="btnSave" class="ghost" disabled>บันทึกขึ้น Cloud</button>
+    <button id="btnRefresh" class="ghost">รีเฟรชจาก Supabase</button>
   </div>
 </header>
 
 <main>
   <section id="upload" class="drop" tabindex="0">
     <h1>อัปโหลดไฟล์ Excel เพื่อสร้างแดชบอร์ด</h1>
-    <p>รองรับ .xlsx .xls .csv ระบบจะตรวจชนิดคอลัมน์ ทำความสะอาดข้อมูล และสร้างกราฟให้อัตโนมัติ</p>
+    <p>รองรับ .xlsx .xls .csv ไฟล์จะถูกทำความสะอาดแล้วบันทึกลง Supabase จากนั้นแดชบอร์ดจะดึงข้อมูลจาก Supabase มาแสดง</p>
     <div class="row">
       <label class="btn">เลือกไฟล์<input id="file" type="file" accept=".xlsx,.xls,.csv" hidden></label>
-      <button id="btnSample" class="ghost">ลองใช้ข้อมูลตัวอย่าง</button>
+      <button id="btnCancel" class="ghost" hidden>กลับไปที่แดชบอร์ด</button>
     </div>
     <p class="hint">หรือลากไฟล์มาวางในกรอบนี้</p>
   </section>
@@ -38,8 +37,8 @@
 
   <div id="app" hidden>
     <div class="bar">
-      <strong id="fname"></strong>
-      <select id="sheet" aria-label="เลือกชีต"></select>
+      <select id="dsel" aria-label="เลือกชุดข้อมูลจาก Supabase"></select>
+      <button id="btnNew" class="ghost">อัปโหลดไฟล์ใหม่</button>
       <input id="q" type="search" placeholder="ค้นหาในข้อมูลทั้งหมด" aria-label="ค้นหา">
       <select id="fcol" aria-label="กรองตามคอลัมน์"></select>
       <select id="fval" aria-label="ค่าที่ต้องการกรอง"></select>
@@ -81,8 +80,6 @@
   </div>
 </main>
 
-<dialog id="dlg"><h2>ไฟล์ที่บันทึกไว้บน Cloud</h2><div id="hist"></div><form method="dialog"><button class="ghost">ปิด</button></form></dialog>
-
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -90,5 +87,6 @@
 <script src="js/data.js"></script>
 <script src="js/cloud.js"></script>
 <script src="js/app.js"></script>
+<script>init();</script>
 </body>
 </html>

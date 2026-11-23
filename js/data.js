@@ -73,12 +73,5 @@ const Data = {
     const m = new Map();
     rows.forEach(r => { const k = r[cat] == null ? '(ไม่ระบุ)' : String(r[cat]); const o = m.get(k) || { s: 0, n: 0 }; o.n++; if (this.isNum(r[num])) o.s += r[num]; m.set(k, o); });
     return [...m].map(([k, o]) => [k, agg === 'count' ? o.n : agg === 'avg' ? o.s / o.n : o.s]).sort((a, b) => b[1] - a[1]);
-  },
-  sample() {
-    const regions = ['กรุงเทพฯ', 'ภาคเหนือ', 'ภาคกลาง', 'ภาคอีสาน', 'ภาคใต้'], cats = ['อุปกรณ์ไอที', 'เครื่องเขียน', 'เฟอร์นิเจอร์', 'อาหารและเครื่องดื่ม'];
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647, out = [];
-    for (let i = 0; i < 240; i++) { const d = new Date(2025, Math.floor(i / 20), 1 + Math.floor(rnd() * 27)), q = 1 + Math.floor(rnd() * 20), p = 100 + Math.floor(rnd() * 900);
-      out.push({ วันที่: d, ภูมิภาค: regions[Math.floor(rnd() * 5)], หมวดสินค้า: cats[Math.floor(rnd() * 4)], จำนวน: q, ราคาต่อหน่วย: p, ยอดขาย: i === 33 ? 250000 : q * p, คะแนนความพึงพอใจ: rnd() < .06 ? null : +(3 + rnd() * 2).toFixed(1) }); }
-    return out;
   }
 };

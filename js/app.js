@@ -1,32 +1,56 @@
 // ===== ส่วนแสดงผล (UI) =====
 const $ = id => document.getElementById(id), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = v => v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 })) : v;
-const S = { name: '', wb: null, rows: [], cols: [], log: [], page: 0, charts: {} }, PAGE = 50;
+const S = { id: null, name: '', list: [], rows: [], cols: [], log: [], page: 0, charts: {} }, PAGE = 50;
 const COLORS = ['#1d5fd1', '#0b2a5b', '#5b9bff', '#8fb8ff', '#3a4f7a', '#b9d3ff', '#2d7ff9', '#6c8ccf'];
 
 function status(msg, err) { const s = $('status'); s.hidden = !msg; s.textContent = msg || ''; s.className = 'status' + (err ? ' err' : ''); }
 
-// อัปโหลดไฟล์
-async function readFile(f) {
-  status('กำลังอ่านไฟล์ ' + f.name + ' …');
+// ===== ข้อมูลทั้งหมดดึงจาก Supabase เท่านั้น =====
+// อัปโหลดไฟล์ → ทำความสะอาด → บันทึกลง Supabase → ดึงกลับจาก Supabase มาแสดง
+async function init() {
+  if (!Cloud.ok()) { $('upload').hidden = true; return status('ยังไม่ได้ตั้งค่า Supabase: ใส่ SUPABASE_URL และ SUPABASE_ANON_KEY ในไฟล์ js/config.js', true); }
+  await refreshList();
+}
+async function refreshList(openId) {
+  try {
+    status('กำลังดึงรายการข้อมูลจาก Supabase …');
+    S.list = await Cloud.list();
+    $('dsel').innerHTML = S.list.map(d => `<option value="${d.id}">${esc(d.name)} (${d.row_count.toLocaleString()} แถว)</option>`).join('');
+    if (!S.list.length) { $('app').hidden = true; $('upload').hidden = false; return status('ยังไม่มีข้อมูลใน Supabase อัปโหลดไฟล์ Excel เพื่อเริ่มต้น หรือรัน supabase/seed.sql'); }
+    await openDataset(openId || S.id || S.list[0].id);
+  } catch (e) { status('เชื่อมต่อ Supabase ไม่สำเร็จ: ' + e.message + ' (ตรวจ URL/anon key และว่ารัน schema.sql แล้ว)', true); }
+}
+async function openDataset(id) {
+  const meta = S.list.find(d => d.id === id) || S.list[0];
+  status('กำลังดึงข้อมูลจาก Supabase …');
+  const raw = await Cloud.load(meta.id);
+  if (!raw.length) throw new Error('ชุดข้อมูลนี้ไม่มีแถวข้อมูล');
+  S.id = meta.id; S.name = meta.name; $('dsel').value = meta.id; show(raw, meta.clean_log);
+}
+async function ingest(f) {
   try {
     if (f.size > 25 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 25 MB กรุณาแบ่งไฟล์');
-    S.wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
-    S.name = f.name; pickSheet(S.wb.SheetNames[0]);
-  } catch (e) { status('อ่านไฟล์ไม่สำเร็จ: ' + e.message + ' (ตรวจว่าเป็นไฟล์ .xlsx .xls หรือ .csv ที่ไม่เสียหาย)', true); }
+    status('กำลังอ่านไฟล์ ' + f.name + ' …');
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true }); let firstId = null;
+    for (const sn of wb.SheetNames) {
+      const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null }); if (!raw.length) continue;
+      const { rows, log } = Data.clean(raw); if (!rows.length) continue;
+      const name = wb.SheetNames.length > 1 ? `${f.name} – ${sn}` : f.name;
+      status(`กำลังบันทึก "${name}" (${rows.length.toLocaleString()} แถว) ลง Supabase …`);
+      const id = await Cloud.save(name, Data.profile(rows).map(({ name, type }) => ({ name, type })), rows, log); firstId = firstId || id;
+    }
+    if (!firstId) throw new Error('ไม่พบข้อมูลในไฟล์ ลองตรวจว่าแถวแรกเป็นหัวคอลัมน์');
+    await refreshList(firstId);
+  } catch (e) { status('อัปโหลดไม่สำเร็จ: ' + e.message, true); }
 }
-function pickSheet(n) {
-  const raw = XLSX.utils.sheet_to_json(S.wb.Sheets[n], { defval: null });
-  if (!raw.length) return status('ชีต "' + n + '" ไม่มีข้อมูล ลองเลือกชีตอื่นหรือไฟล์อื่น', true);
-  $('sheet').innerHTML = S.wb.SheetNames.map(s => `<option ${s === n ? 'selected' : ''}>${esc(s)}</option>`).join('');
-  load(raw);
-}
-function load(raw) {
-  const { rows, log } = Data.clean(raw); S.rows = rows; S.log = log; S.cols = Data.profile(rows);
-  $('fname').textContent = S.name; $('upload').hidden = true; $('app').hidden = false; $('btnSave').disabled = false; status('');
-  const by = t => S.cols.filter(c => c.type === t);
-  const opt = (arr, none) => (none ? '<option value="">' + none + '</option>' : '') + arr.map(c => `<option>${esc(c.name)}</option>`).join('');
-  $('gCat').innerHTML = opt(by('category').concat(by('text').filter(c => c.unique < 60)));
+function show(raw, log) {
+  const c = Data.clean(raw); S.rows = c.rows; S.cols = Data.profile(c.rows);
+  S.log = (log && log.length ? log : c.log).concat('ข้อมูลที่แสดงทั้งหมดดึงมาจาก Supabase (' + c.rows.length.toLocaleString() + ' แถว)');
+  $('upload').hidden = true; $('app').hidden = false; status('');
+  const by = t => S.cols.filter(x => x.type === t);
+  const opt = (arr, none) => (none ? '<option value="">' + none + '</option>' : '') + arr.map(x => `<option>${esc(x.name)}</option>`).join('');
+  $('gCat').innerHTML = opt(by('category').concat(by('text').filter(x => x.unique < 60)));
   $('gNum').innerHTML = opt(by('number')); $('gDate').innerHTML = opt(by('date'), '— ไม่ใช้ —');
   $('fcol').innerHTML = opt(by('category'), 'กรองตาม…'); $('fval').innerHTML = '<option value="">ทั้งหมด</option>'; $('q').value = '';
   S.page = 0; renderAll();
@@ -91,12 +115,14 @@ function renderTable(v) {
 
 // เหตุการณ์
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + b.dataset.t)); if (b.dataset.t === 'overview' && S.rows.length) renderOverview(view()); });
-$('file').onchange = e => e.target.files[0] && readFile(e.target.files[0]);
-$('btnSample').onclick = () => { S.name = 'ข้อมูลตัวอย่าง (ยอดขาย)'; S.wb = null; $('sheet').innerHTML = ''; load(Data.sample()); };
-$('sheet').onchange = e => pickSheet(e.target.value);
+$('file').onchange = e => e.target.files[0] && ingest(e.target.files[0]);
+$('dsel').onchange = async e => { try { await openDataset(e.target.value); } catch (x) { status('ดึงข้อมูลไม่สำเร็จ: ' + x.message, true); } };
+$('btnRefresh').onclick = () => refreshList(S.id);
+$('btnNew').onclick = () => { $('upload').hidden = false; $('btnCancel').hidden = false; $('upload').scrollIntoView(); };
+$('btnCancel').onclick = () => { $('upload').hidden = true; };
 const dz = $('upload'); ['dragover', 'dragenter'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.add('over'); }));
 ['dragleave', 'drop'].forEach(t => dz.addEventListener(t, e => { e.preventDefault(); dz.classList.remove('over'); }));
-dz.addEventListener('drop', e => e.dataTransfer.files[0] && readFile(e.dataTransfer.files[0]));
+dz.addEventListener('drop', e => e.dataTransfer.files[0] && ingest(e.dataTransfer.files[0]));
 ['gCat', 'gNum', 'gAgg', 'gDate'].forEach(i => $(i).onchange = () => renderOverview(view()));
 $('q').oninput = () => { S.page = 0; renderAll(); };
 $('fcol').onchange = () => { const c = $('fcol').value; $('fval').innerHTML = '<option value="">ทั้งหมด</option>' + (c ? [...new Set(S.rows.map(r => r[c]))].filter(x => x != null).sort().map(x => `<option>${esc(x)}</option>`).join('') : ''); S.page = 0; renderAll(); };
@@ -104,15 +130,3 @@ $('fval').onchange = () => { S.page = 0; renderAll(); };
 $('btnReset').onclick = () => { $('q').value = ''; $('fcol').value = ''; $('fval').innerHTML = '<option value="">ทั้งหมด</option>'; S.page = 0; renderAll(); };
 $('prev').onclick = () => { S.page--; renderTable(view()); }; $('next').onclick = () => { S.page++; renderTable(view()); };
 $('btnCsv').onclick = () => { const ws = XLSX.utils.json_to_sheet(view()), a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + XLSX.utils.sheet_to_csv(ws)], { type: 'text/csv' })); a.download = 'datalens-export.csv'; a.click(); };
-$('btnSave').onclick = async () => {
-  if (!Cloud.ok()) return status('ยังไม่ได้ตั้งค่า Supabase: ใส่ URL และ anon key ในไฟล์ js/config.js', true);
-  status('กำลังบันทึกขึ้น Cloud …'); try { await Cloud.save(S.name, S.cols.map(({ name, type }) => ({ name, type })), S.rows); status('บันทึกสำเร็จ ' + S.rows.length.toLocaleString() + ' แถว'); } catch (e) { status('บันทึกไม่สำเร็จ: ' + e.message, true); }
-};
-$('btnHistory').onclick = async () => {
-  const box = $('hist'); $('dlg').showModal();
-  if (!Cloud.ok()) return box.textContent = 'ยังไม่ได้ตั้งค่า Supabase ใน js/config.js';
-  box.textContent = 'กำลังโหลด …';
-  try { const l = await Cloud.list(); box.innerHTML = l.length ? l.map(d => `<div class="h"><span>${esc(d.name)}<br><small>${d.row_count} แถว · ${new Date(d.created_at).toLocaleString('th-TH')}</small></span><button class="ghost" data-id="${d.id}" data-n="${esc(d.name)}">เปิด</button></div>`).join('') : 'ยังไม่มีไฟล์ที่บันทึกไว้';
-    box.querySelectorAll('button').forEach(b => b.onclick = async () => { $('dlg').close(); status('กำลังโหลดข้อมูล …'); try { S.name = b.dataset.n; load(await Cloud.load(b.dataset.id)); } catch (e) { status('โหลดไม่สำเร็จ: ' + e.message, true); } }); }
-  catch (e) { box.textContent = 'โหลดรายการไม่สำเร็จ: ' + e.message; }
-};
